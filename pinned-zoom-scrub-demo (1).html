@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pinned Zoom-Scrub · Selami Pancasila</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;800&family=Quicksand:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cream:#FFF7EA;
+    --ink:#12111A;
+    --ink-soft:#8A8494;
+    --red:#FF5A5F;
+    --green:#06A77D;
+    --yellow:#FFC94D;
+    --blue:#4D96FF;
+    --purple:#9B5DE5;
+  }
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:auto; }
+  body{
+    margin:0;
+    background:var(--cream);
+    color:var(--ink);
+    font-family:'Nunito',sans-serif;
+  }
+  h1,h2,h3{ font-family:'Baloo 2',cursive; margin:0; }
+
+  /* ---------- intro / outro spacer sections, just so the pinned stage has context ---------- */
+  .spacer{
+    min-height:70vh; display:flex; align-items:center; justify-content:center;
+    text-align:center; padding:40px 24px;
+  }
+  .spacer .eyebrow{
+    display:inline-block; font-family:'Quicksand',sans-serif; font-weight:700; letter-spacing:2px;
+    font-size:0.72rem; text-transform:uppercase; color:var(--ink-soft); margin-bottom:14px;
+  }
+  .spacer h2{ font-size:1.7rem; max-width:420px; margin:0 auto 10px; line-height:1.3; }
+  .spacer p{ color:var(--ink-soft); max-width:360px; margin:0 auto; font-size:0.95rem; line-height:1.5; }
+  .scroll-cue{
+    margin-top:26px; font-family:'Quicksand',sans-serif; font-weight:700; font-size:0.78rem;
+    color:var(--purple); display:flex; flex-direction:column; align-items:center; gap:6px;
+  }
+  .scroll-cue .arrow{ animation: bob 1.6s ease-in-out infinite; font-size:1.1rem; }
+  @keyframes bob{ 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(8px);} }
+
+  /* =========================================================
+     THE PINNED SCRUB STAGE
+     - .pin-stage is tall (N * 100vh) so there's scroll room to consume
+     - .pin-viewport is position:sticky, so it stays pinned to the
+       viewport for the entire time .pin-stage is passing through
+     - scroll position inside that range is the "signal" driving
+       zoom / depth on the cards
+     ========================================================= */
+  .pin-stage{ position:relative; height:600vh; }
+  .pin-viewport{
+    position:sticky; top:0; height:100vh; overflow:hidden;
+    display:flex; align-items:center; justify-content:center;
+    background: radial-gradient(circle at 50% 50%, #24202F 0%, #0C0A12 72%);
+  }
+
+  /* radial "tunnel" vignette — gets tighter & darker the deeper you scroll,
+     this is the ambient cue that reinforces "you are diving further in" */
+  .tunnel-glow{
+    position:absolute; inset:-20%; pointer-events:none; z-index:0;
+    background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0) 45%);
+    transition: opacity .1s linear;
+  }
+
+  .depth-readout{
+    position:absolute; top:26px; left:0; right:0; z-index:5;
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+    font-family:'Quicksand',sans-serif; color:#fff; pointer-events:none;
+  }
+  .depth-readout .step-label{
+    font-size:0.72rem; font-weight:700; letter-spacing:2px; text-transform:uppercase; opacity:0.75;
+  }
+  .depth-track{ width:120px; height:4px; border-radius:4px; background:rgba(255,255,255,0.18); overflow:hidden; }
+  .depth-track-fill{ height:100%; width:0%; background:linear-gradient(90deg,var(--yellow),var(--red),var(--purple)); }
+
+  .card-stack{ position:relative; width:100%; height:100%; z-index:2; }
+  .depth-card{
+    position:absolute; top:50%; left:50%;
+    width:min(78vw, 360px);
+    padding:30px 26px 26px;
+    border-radius:26px;
+    background:#fff;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.45);
+    text-align:center;
+    will-change: transform, opacity;
+    transform: translate(-50%,-50%) scale(0.4);
+    opacity:0;
+  }
+  .depth-card.has-video{ width:min(92vw, 460px); }
+  .depth-card .card-emoji{ font-size:2.4rem; display:block; margin-bottom:10px; }
+  .depth-card .card-video{
+    margin-top:14px; width:100%; aspect-ratio:16/9; border-radius:14px; overflow:hidden;
+    background:#000; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06);
+  }
+  .depth-card .card-video iframe{ width:100%; height:100%; border:0; display:block; }
+  .depth-card .video-tag{
+    display:inline-block; font-family:'Quicksand',sans-serif; font-weight:700; font-size:0.66rem;
+    letter-spacing:1px; text-transform:uppercase; color:var(--red); background:#FFE9E9;
+    padding:3px 10px; border-radius:20px; margin-top:10px;
+  }
+  .depth-card .card-eyebrow{
+    display:inline-block; font-family:'Quicksand',sans-serif; font-weight:700; font-size:0.68rem;
+    letter-spacing:1.5px; text-transform:uppercase; color:#fff; padding:4px 12px; border-radius:20px;
+    margin-bottom:10px;
+  }
+  .depth-card h3{ font-size:1.28rem; line-height:1.28; margin-bottom:8px; color:var(--ink); }
+  .depth-card p{ font-size:0.86rem; color:var(--ink-soft); line-height:1.5; margin:0; }
+
+  @media (prefers-reduced-motion: reduce){
+    .pin-stage{ height:auto; }
+    .pin-viewport{ position:static; height:auto; padding:60px 20px; flex-direction:column; gap:24px; background:var(--ink); }
+    .depth-readout{ display:none; }
+    .card-stack{ position:static; display:flex; flex-direction:column; gap:20px; align-items:center; }
+    .depth-card{ position:static; transform:none !important; opacity:1 !important; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="spacer">
+    <div>
+      <span class="eyebrow">Sebelum mulai</span>
+      <h2>Gulir buat menyelam masuk ke lima sila 🌊</h2>
+      <p>Bagian di bawah ini akan "menempel" di layar — makin dalam kamu gulir, kartunya makin membesar, seolah kamu menyelam makin dalam ke tiap sila.</p>
+      <div class="scroll-cue"><span>GULIR KE BAWAH</span><span class="arrow">↓</span></div>
+    </div>
+  </div>
+
+  <section class="pin-stage" id="pinStage">
+    <div class="pin-viewport">
+      <div class="tunnel-glow" id="tunnelGlow"></div>
+      <div class="depth-readout">
+        <div class="step-label" id="stepLabel">Sila 1 / 5</div>
+        <div class="depth-track"><div class="depth-track-fill" id="depthFill"></div></div>
+      </div>
+      <div class="card-stack" id="cardStack"></div>
+    </div>
+  </section>
+
+  <div class="spacer">
+    <div>
+      <span class="eyebrow">Selesai menyelam</span>
+      <h2>Lima sila, satu Indonesia 🇮🇩</h2>
+      <p>Efek ini pakai posisi scroll sebagai "sinyal" tunggal — makin jauh kamu gulir di dalam panel, makin besar (dan makin dekat) kartunya terlihat.</p>
+    </div>
+  </div>
+
+<script>
+  const silaCards = [
+    { emoji:'⭐', label:'Sila 1', title:'Ketuhanan yang Maha Esa', desc:'Menghormati tetangga yang sedang beribadah, apapun keyakinannya.', color:'#FF5A5F' },
+    { emoji:'⛓️', label:'Sila 2', title:'Kemanusiaan yang Adil & Beradab', desc:'Membantu tetangga yang sedang kesulitan tanpa memandang siapa dia.', color:'#06A77D' },
+    { emoji:'🌳', label:'Sila 3', title:'Persatuan Indonesia', desc:'Kompak gotong royong bareng warga, meski beda suku dan latar belakang.', color:'#4D96FF' },
+    { emoji:'🐃', label:'Sila 4', title:'Kerakyatan dalam Musyawarah', desc:'Ikut musyawarah dan menerima hasil mufakat dengan lapang dada.', color:'#9B5DE5', video:'VitL0zNY1hg' },
+    { emoji:'🌾', label:'Sila 5', title:'Keadilan Sosial', desc:'Membagi bantuan secara adil ke semua orang yang membutuhkan.', color:'#FFC94D', video:'wSHnEEz4aD0', videoTag:'Kasus MBG' },
+  ];
+
+  const stack = document.getElementById('cardStack');
+  const cardEls = silaCards.map(s=>{
+    const el = document.createElement('div');
+    el.className = 'depth-card' + (s.video ? ' has-video' : '');
+    el.innerHTML = `
+      <span class="card-emoji">${s.emoji}</span>
+      <span class="card-eyebrow" style="background:${s.color}">${s.label}</span>
+      <h3>${s.title}</h3>
+      <p>${s.desc}</p>
+      ${s.video ? `
+        <div class="card-video">
+          <iframe
+            src="https://www.youtube.com/embed/${s.video}"
+            title="${s.title}"
+            frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowfullscreen>
+          </iframe>
+        </div>
+        ${s.videoTag ? `<span class="video-tag">${s.videoTag}</span>` : ''}
+      ` : ''}
+    `;
+    stack.appendChild(el);
+    return el;
+  });
+
+  const pinStage = document.getElementById('pinStage');
+  const tunnelGlow = document.getElementById('tunnelGlow');
+  const stepLabel = document.getElementById('stepLabel');
+  const depthFill = document.getElementById('depthFill');
+
+  const N = silaCards.length;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+
+  function update(){
+    const rect = pinStage.getBoundingClientRect();
+    const scrollable = pinStage.offsetHeight - window.innerHeight;
+    // how far we've scrolled through the pinned stage, 0 -> 1
+    const progress = clamp(-rect.top / scrollable, 0, 1);
+
+    const segment = 1 / N;
+    let activeIdx = 0;
+
+    cardEls.forEach((card, i)=>{
+      const segStart = i * segment;
+      // local progress within this card's own "dive" window, 0 -> 1
+      let local = (progress - segStart) / segment;
+      local = clamp(local, 0, 1);
+      if(progress >= segStart && progress < segStart + segment) activeIdx = i;
+
+      // ZOOM IS THE SIGNAL: more scroll inside this card's window = more zoom = "deeper"
+      const scale = 0.4 + local * 2.4; // grows from 0.4x up to 2.8x (blows past the frame)
+
+      // fade in fast, hold, then fade out as it zooms past camera
+      let opacity;
+      if(local < 0.12) opacity = local / 0.12;
+      else if(local > 0.78) opacity = (1 - local) / 0.22;
+      else opacity = 1;
+
+      card.style.transform = `translate(-50%,-50%) scale(${scale.toFixed(3)})`;
+      card.style.opacity = opacity.toFixed(3);
+      card.style.zIndex = 10 + i;
+    });
+
+    if(!reduceMotion){
+      // ambient tunnel glow tightens as you go deeper into the whole stage
+      tunnelGlow.style.opacity = (0.5 + progress * 0.6).toFixed(2);
+      stepLabel.textContent = `Sila ${activeIdx + 1} / ${N}`;
+      depthFill.style.width = (progress * 100).toFixed(1) + '%';
+    }
+  }
+
+  if(!reduceMotion){
+    let ticking = false;
+    window.addEventListener('scroll', ()=>{
+      if(!ticking){
+        requestAnimationFrame(()=>{ update(); ticking = false; });
+        ticking = true;
+      }
+    }, { passive:true });
+    window.addEventListener('resize', update);
+    update();
+  }
+</script>
+
+</body>
+</html>
